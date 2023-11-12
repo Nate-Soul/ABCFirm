@@ -5,6 +5,7 @@ import { useState } from "react";
 const Home = () => {
   const [openModal, setOpenModal] = useState(false);
   const [disableSubmitButton, setDisableSubmitbutton] = useState(true);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const toggleModal = (e) => {
     e.preventDefault();
@@ -31,8 +32,13 @@ const Home = () => {
     if (resource_link) {
       if (validateURL(resource_link)) {
         setFormValues({ ...formValues, resource_link });
-        // activateSubmitButton();
+        activateSubmitButton();
+      } else {
+        activateSubmitButton();
       }
+    } else {
+      setFormValues({ ...formValues, resource_link });
+      activateSubmitButton();
     }
   }
 
@@ -59,7 +65,7 @@ const Home = () => {
 
   const validateURL = (url) => {
 
-    let isValid = false;
+    let isValid = true;
 
     const supportedHosts = ['drive.google.com', 'www.dropbox.com', 'www.youtube.com'];
     const urlPattern = /^(ftp|http|https):\/\/[^ "]+$/;
@@ -69,25 +75,27 @@ const Home = () => {
       isValid = false;
     } else {
       setErrors({ ...errors, resource_link: "" });
-      isValid = true;
     }
 
-    const hostname = new URL(url).hostname;
-    if (
-      !supportedHosts.includes(hostname) && 
-      (
-        hostname !== 'drive.google.com' && url.includes('/file/d/') || 
-        hostname !== 'www.dropbox.com' && url.includes('/s/') ||
-        hostname !== 'www.youtube.com'
-      )
-    ) {
-      setErrors(
-        { ...errors, resource_link: "URL is valid but not from our supported host: Google or dropbox or Youtube" }
-      );
-      isValid = false;
-    } else {
-      setErrors({...errors, resource_link: ""});
-      isValid = true;
+    try {
+      const hostname = new URL(url).hostname;
+      if (
+        !supportedHosts.includes(hostname) && 
+        (
+          hostname !== 'drive.google.com' && url.includes('/file/d/') || 
+          hostname !== 'www.dropbox.com' && url.includes('/s/') ||
+          hostname !== 'www.youtube.com'
+        )
+      ) {
+        setErrors(
+          { ...errors, resource_link: "URL is valid but not from our supported host: Google or dropbox or Youtube" }
+        );
+        isValid = false;
+      } else {
+        setErrors({...errors, resource_link: ""});
+      }
+    } catch(_) {
+      setErrors({ ...errors, resource_link: "Invalid URL" });
     }
 
     return isValid;
@@ -95,9 +103,9 @@ const Home = () => {
 
   const validateFile = (resourceFile) => {
 
-    let isValid = false;
+    let isValid = true;
 
-    const maxSize           = Math.floor(1024 * 1024 * 1024);
+    const maxSize           = Math.floor(1024 * 1024 * 10); //10MB
     const acceptedFileTypes = [
       "audio/mpeg",
       "video/mp4", 
@@ -121,7 +129,6 @@ const Home = () => {
       isValid = false;
     } else {
       setErrors({ ...errors, resource_file : "" });
-      isValid = true;
     }
 
     if (!acceptedFileTypes.includes(fileType)) {
@@ -131,40 +138,45 @@ const Home = () => {
       isValid = false;
     } else {
       setErrors({ ...errors, resource_file : "" });
-      isValid = true;
     }
 
     return isValid;
   };
 
   const activateSubmitButton = () => {
-    setDisableSubmitbutton(Object.keys(errors).length > 0);
+    setDisableSubmitbutton(
+      (prev) => {
+        Object.keys(errors).length > 0 ? prev === true ? prev : false : false
+      }
+    );
   };
 
   const validateFormFields = () => {
 
-    let isValid = false;
+    let isValid = true;
 
-    const { transcription_language, resource_file, resource_link } = formValues;
-
-    isValid = validateTranscriptionLanguage(transcription_language);
+    if (!validateTranscriptionLanguage(formValues.transcription_language)) {
+      isValid = false;
+    }
     
-    if (resource_link) {
-      isValid = validateURL(resource_link);
+    if (formValues.resource_link && !validateURL(formValues.resource_link)) {
+      isValid = false;
     }
 
-    if (resource_file) {
-      isValid = validateFile(resource_file);
+    if (formValues.resource_file && !validateFile(formValues.resource_file)) {
+      isValid = false;
     }
 
-    if (resource_file && resource_link){
+    if (formValues.resource_file && formValues.resource_link){
       setErrors(
         { ...errors, form_submit: "You can't upload a resource file and provide an import link simultaneously" }
       );
       isValid = false;
-    } else {
+    } else if (!formValues.resource_file && !formValues.resource_link) {
       setErrors({ ...errors, form_submit: "Please upload a resource file or provide an import link" });
       isValid = false;
+    } else {
+      setErrors({ ...errors, form_submit: "" });
     }
 
     return isValid;
@@ -174,20 +186,23 @@ const Home = () => {
     e.preventDefault();
 
     // Check if there are any errors
-    if (validateFormFields(formValues)){
+    if (!validateFormFields()){
+      setErrors({ ...errors, form_submit: "There are some errors on the form fields. please cross-check and try again" });
       activateSubmitButton();
-      // if (errors) return;
+    } else {
+      setErrors({ ...errors, form_submit: "" });
+      setDisableSubmitbutton(true);
+
       try {
-        console.log(formValues);
-        // await submitData(formValues);
-        resetForm();
+        // console.log(formValues);
+        await submitData(formValues);
+        setDisableSubmitbutton(false);
       } catch(err){
         console.log(err);
-        setErrors({ ...errors, form_submit: "something went wrong" });
+        setErrors({ ...errors, form_submit: "Something went wrong, failed to submit form" });
+        setDisableSubmitbutton(false);
         resetForm();
       }
-    } else {
-      setErrors({ ...errors, form_submit: "There's an error some fields. please cross-check and try again" });
     }
   };
 
@@ -199,7 +214,7 @@ const Home = () => {
       enable_speaker_identification: false,
     });
     setErrors({});
-    activateSubmitButton();
+    setOpenModal(false);
   };
 
   const submitData = async (data) => {
@@ -218,7 +233,11 @@ const Home = () => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log(result);
+        setSuccessMessage(result.detail);
+        setTimeout(() => {
+          setSuccessMessage("");
+          resetForm();
+        }, 3000);
       } else {
         const error = await response.json();
         console.log(error);
@@ -375,7 +394,17 @@ const Home = () => {
 
               {/* Resource File */}
               <div className="p-5 border border-gray-100 rounded-lg flex flex-col gap-5 justify-center items-center">
-                <span>{formValues.resource_file ? formValues.resource_file.name : "No file selected"}</span>
+                <p>
+                  {formValues.resource_file ? formValues.resource_file.name : "No file selected"}&nbsp;
+                  {formValues.resource_file && (
+                    <span 
+                      className="text-red-500 cursor-pointer text-xl" 
+                      onClick={() => setFormValues({ ...formValues, resource_file: null})}
+                    >
+                      &times;
+                    </span>
+                  )}
+                </p>
                 <div className="relative block mt-5 mb-4">
                   <input
                     type="file"
@@ -412,8 +441,7 @@ const Home = () => {
                   type="url"
                   name="resource_link"
                   id="resourceLink"
-                  onChange={activateSubmitButton}
-                  onBlur={(e) => handleUrlChange(e.target.value)}
+                  onChange={(e) => handleUrlChange(e.target.value)}
                   placeholder="Paste a Dropbox, Google Drive or YouTube URL here"
                   className="p-3 outline-none border border-gray-100 rounded-lg ring-2 ring-transparent hover:ring-blue-100 focus:ring-blue-200"
                 />
@@ -449,6 +477,9 @@ const Home = () => {
 
               {/* Display Errors */}
               {errors.form_submit && ( <small className="text-red-500">{errors.form_submit}</small> )}
+
+              {/* Display Success */}
+              {successMessage && ( <small className="text-green-500">{successMessage}</small> )}
             </form>
           </div>
         </div>
