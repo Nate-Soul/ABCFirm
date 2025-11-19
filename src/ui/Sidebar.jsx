@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const Sidebar = () => {
 
@@ -38,12 +38,12 @@ const Sidebar = () => {
             text: "Help and Support",
             icon: "bi-question-circle"
         },
-    ]
+    ];
 
   return (
     <aside className="col-span-3 flex flex-col justify-between py-4 px-8 min-h-full">
         <section>
-            <h1 className="text-blue-500 mb-8 font-bold">ABC Firm</h1>
+            <h1 className="text-blue-500 mb-8 font-bold">Transcibaar</h1>
             <ul className="flex flex-col gap-3">
                 {links && links.map((link, index) => (
                 <li key={index} className={`${link.url == currentUrl ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"} py-2 px-3 rounded-lg`}>
